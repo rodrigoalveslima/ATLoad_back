@@ -29,6 +29,7 @@ think_time_distribution: poisson  # distribution of think time (e.g., poisson,
                                   # constant)
 burstiness:
   think_time: 5                   # mean bursty think time
+  window_in_s: 1.0                # duration of bursty window
   turn_on_prob: 0.2               # probability of turning bursty mode on
   turn_off_prob: 0.1              # probability of turning bursty mode off
 request_graph:

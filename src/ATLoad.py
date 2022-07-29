@@ -13,7 +13,7 @@ import yaml
 
 
 class Session:
-  def _run(self, start_time, start_at, stop_at, request_graph, think_time,
+  def _run(self, conf, start_time, start_at, stop_at, request_graph, think_time,
       think_time_distribution):
     self._logs = []
     self._request_graph = request_graph
@@ -25,14 +25,13 @@ class Session:
     while time.time() < stop_at:
       request = self._select_next_request(request)
       getattr(self, request)()
+      cur_think_time = think_time if isinstance(think_time, int) else \
+          think_time[int((time.time() - start_time) / conf["burstiness"]["window_in_s"])]
       if think_time_distribution:
         think_time_generator = getattr(numpy.random, think_time_distribution)
-        time.sleep(max(0, min(
-            think_time_generator(think_time[int(time.time() - start_time)]),
-            stop_at - time.time())))
+        time.sleep(max(0, min(think_time_generator(cur_think_time), stop_at - time.time())))
       else:
-        time.sleep(min(think_time[int(time.time() - start_time)],
-            stop_at - time.time()))
+        time.sleep(min(cur_think_time, stop_at - time.time()))
 
   def _select_next_request(self, request):
     r = random.uniform(0, sum(self._request_graph[request].values()))
@@ -52,33 +51,35 @@ class Workload:
     random.seed(random_seed)
     # Parse configuration file and copy parameters.
     with open(conf_filename) as conf_file:
-      conf = yaml.safe_load(conf_file)
+      self._conf = yaml.safe_load(conf_file)
     self._log_filename = log_filename
     self._session_cls = session_cls
     self._n_workers = n_workers
     self._args = args
-    self._n_sessions = conf["sessions"]
-    self._duration = conf["duration"]
+    self._n_sessions = self._conf["sessions"]
+    self._duration = self._conf["duration"]
     self._request_graph = dict([(request, collections.OrderedDict(
-        conf["request_graph"][request])) for request in conf["request_graph"]])
-    self._think_time_distribution = conf["think_time_distribution"] \
-        if conf["think_time_distribution"] != "constant" else None
-    # Generate mean think times using a Markovian Arrival Process (MAP) for burstiness.
-    self._think_time = []
-    burstiness_on = False
-    for i in range(int(conf["duration"]["total"]) + 60):
-      if "burstiness" in conf:
-        if burstiness_on and random.uniform(0, 1) < conf["burstiness"]["turn_off_prob"]:
-          burstiness_on = False
-        elif not burstiness_on and random.uniform(0, 1) < conf["burstiness"]["turn_on_prob"]:
-          burstiness_on = True
-      self._think_time.append(conf["burstiness"]["think_time"] if burstiness_on else conf["think_time"])
+        self._conf["request_graph"][request])) for request in self._conf["request_graph"]])
+    self._think_time_distribution = self._conf["think_time_distribution"] \
+        if self._conf["think_time_distribution"] != "constant" else None
+    if "burstiness" in self._conf:
+      # Generate mean think times using a Markovian Arrival Process (MAP).
+      burstiness = []
+      for i in range(int((self._conf["duration"]["total"] + 60) / self._conf["burstiness"]["window_in_s"])):
+        if i == 0 or burstiness[-1] == True:
+          burstiness.append(random.uniform(0, 1) > self._conf["burstiness"]["turn_off_prob"])
+        else:
+          burstiness.append(random.uniform(0, 1) < self._conf["burstiness"]["turn_on_prob"])
+      self._think_time = [self._conf["burstiness"]["think_time"] if b else self._conf["think_time"] for b in burstiness]
+    else:
+      self._think_time = self._conf["think_time"]
 
   def _run_worker(self, log_filename, start_time, n_sessions):
     # Initialize sessions.
     sessions = [self._session_cls(*self._args) for i in range(n_sessions)]
     # Run each session in its own thread.
     threads = [threading.Thread(target=session._run, args=[
+        self._conf,
         start_time,
         start_time + self._duration["ramp_up"] * (i / n_sessions),
         start_time + self._duration["total"] -
