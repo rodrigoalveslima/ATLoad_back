@@ -66,10 +66,15 @@ class Workload:
       # Generate mean think times using a Markovian Arrival Process (MAP).
       burstiness = []
       for i in range(int((self._conf["duration"]["total"] + 60) / self._conf["burstiness"]["window_in_s"])):
-        if i == 0 or burstiness[-1] == True:
-          burstiness.append(random.uniform(0, 1) > self._conf["burstiness"]["turn_off_prob"])
+        if i * self._conf["burstiness"]["window_in_s"] > self._conf["duration"]["ramp_up"] and \
+            i * self._conf["burstiness"]["window_in_s"] < self._conf["duration"]["total"] - \
+                self._conf["duration"]["ramp_down"]:
+          if i == 0 or burstiness[-1] == True:
+            burstiness.append(random.uniform(0, 1) > self._conf["burstiness"]["turn_off_prob"])
+          else:
+            burstiness.append(random.uniform(0, 1) < self._conf["burstiness"]["turn_on_prob"])
         else:
-          burstiness.append(random.uniform(0, 1) < self._conf["burstiness"]["turn_on_prob"])
+          burstiness.append(False)
       self._think_time = [self._conf["burstiness"]["think_time"] if b else self._conf["think_time"] for b in burstiness]
     else:
       self._think_time = self._conf["think_time"]
