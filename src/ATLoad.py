@@ -19,7 +19,7 @@ class Session:
     self._request_graph = request_graph
     # Wait to start.
     while time.time() < start_at:
-      time.sleep(0.1)
+      time.sleep(0.01)
     # Session loop.
     request = "main"
     while time.time() < stop_at:
