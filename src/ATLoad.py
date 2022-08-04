@@ -13,8 +13,8 @@ import yaml
 
 
 class Session:
-  def _run(self, conf, start_time, start_at, stop_at, request_graph, think_time,
-      think_time_distribution):
+  def _run(self, conf, start_time, start_at, stop_at, request_graph, mean_think_time,
+      think_time_generator, intensity):
     self._logs = []
     self._request_graph = request_graph
     # Wait to start.
@@ -25,13 +25,11 @@ class Session:
     while time.time() < stop_at:
       request = self._select_next_request(request)
       getattr(self, request)()
-      cur_think_time = think_time if isinstance(think_time, int) else \
-          think_time[int((time.time() - start_time) / conf["burstiness"]["window_in_s"])]
-      if think_time_distribution:
-        think_time_generator = getattr(numpy.random, think_time_distribution)
-        time.sleep(max(0, min(think_time_generator(cur_think_time), stop_at - time.time())))
-      else:
-        time.sleep(min(cur_think_time, stop_at - time.time()))
+      think_time = think_time_generator(mean_think_time)
+      while think_time > 0:
+        time.sleep(0.01)
+        think_time -= 0.01 * (intensity if isinstance(intensity, int) else
+            intensity[int((time.time() - start_time) / conf["burstiness"]["window"])])
 
   def _select_next_request(self, request):
     r = random.uniform(0, sum(self._request_graph[request].values()))
@@ -60,24 +58,25 @@ class Workload:
     self._duration = self._conf["duration"]
     self._request_graph = dict([(request, collections.OrderedDict(
         self._conf["request_graph"][request])) for request in self._conf["request_graph"]])
-    self._think_time_distribution = self._conf["think_time_distribution"] \
-        if self._conf["think_time_distribution"] != "constant" else None
-    if "burstiness" in self._conf:
-      # Generate mean think times using a Markovian Arrival Process (MAP).
-      burstiness = []
-      for i in range(int((self._conf["duration"]["total"] + 60) / self._conf["burstiness"]["window_in_s"])):
-        if i * self._conf["burstiness"]["window_in_s"] > self._conf["duration"]["ramp_up"] and \
-            i * self._conf["burstiness"]["window_in_s"] < self._conf["duration"]["total"] - \
-                self._conf["duration"]["ramp_down"]:
-          if i == 0 or burstiness[-1] == True:
-            burstiness.append(random.uniform(0, 1) > self._conf["burstiness"]["turn_off_prob"])
-          else:
-            burstiness.append(random.uniform(0, 1) < self._conf["burstiness"]["turn_on_prob"])
-        else:
-          burstiness.append(False)
-      self._think_time = [self._conf["burstiness"]["think_time"] if b else self._conf["think_time"] for b in burstiness]
+    self._mean_think_time = self._conf["think_time"]
+    self._think_time_generator = getattr(numpy.random, self._conf["think_time_distribution"]) \
+        if self._conf["think_time_distribution"] != "constant" else lambda x: x
+    if "burstiness" not in self._conf:
+      self._intensity = 1
     else:
-      self._think_time = self._conf["think_time"]
+      self._intensity = []
+      for i in range(int((self._conf["duration"]["total"] + 60) / self._conf["burstiness"]["window"])):
+        if i * self._conf["burstiness"]["window"] > self._conf["duration"]["ramp_up"] and \
+            i * self._conf["burstiness"]["window"] < self._conf["duration"]["total"] - \
+                self._conf["duration"]["ramp_down"]:
+          if i == 0 or self._intensity[-1] != 1:
+            self._intensity.append(self._conf["burstiness"]["intensity"]
+                if random.uniform(0, 1) > self._conf["burstiness"]["turn_off_prob"] else 1)
+          else:
+            self._intensity.append(self._conf["burstiness"]["intensity"]
+                if random.uniform(0, 1) < self._conf["burstiness"]["turn_on_prob"] else 1)
+        else:
+          self._intensity.append(1)
 
   def _run_worker(self, log_filename, start_time, n_sessions):
     # Initialize sessions.
@@ -90,8 +89,9 @@ class Workload:
         start_time + self._duration["total"] -
             self._duration["ramp_down"] * (i / n_sessions),
         self._request_graph,
-        self._think_time,
-        self._think_time_distribution])
+        self._mean_think_time,
+        self._think_time_generator,
+        self._intensity])
         for (i, session) in enumerate(sessions)]
     for thread in threads:
       thread.start()

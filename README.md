@@ -7,7 +7,7 @@ previous request has returned.
 * ATLoad generates think times (i.e., time intervals between consecutive
 client requests) using a configurable statistical distribution (e.g., Poisson,
 uniform, or constant).
-* ATLoad can inject burstiness to the generation of think times using a
+* ATLoad injects burstiness to the workload using a
 *Markovian Arrival Process (MAP)*, as described in this
 [paper](https://dl.acm.org/doi/abs/10.1145/1555228.1555267).
 * ATLoad generates a request mix using a graph where nodes represent request
@@ -17,19 +17,19 @@ types.
 ## Workload Configuration
 This configuration specifies a bursty workload that simulates 200 clients
 sending 3 types of requests (`write`, `read`, and `delete`) for 300 seconds. The
-mean think time is 10 seconds (5 seconds during a burst).
+mean think time is 10 seconds.
 ```
 sessions: 200                     # number of concurrent sessions
 duration:
   total: 300                      # total duration in seconds
   ramp_up: 60                     # ramp up time in seconds
   ramp_down: 60                   # ramp down time in seconds
-think_time: 10                    # mean think time
+think_time: 10                    # mean think time in seconds
 think_time_distribution: poisson  # distribution of think time (e.g., poisson,
                                   # constant)
 burstiness:
-  think_time: 5                   # mean bursty think time
-  window_in_s: 1.0                # duration of bursty window
+  window: 1.0                     # burstiness window in seconds
+  intensity: 4                    # burstiness intensity (as a multiplier of average workload)
   turn_on_prob: 0.2               # probability of turning bursty mode on
   turn_off_prob: 0.1              # probability of turning bursty mode off
 request_graph:
