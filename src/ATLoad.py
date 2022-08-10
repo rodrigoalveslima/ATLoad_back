@@ -24,12 +24,15 @@ class Session:
     request = "main"
     while time.time() < stop_at:
       request = self._select_next_request(request)
-      getattr(self, request)()
+      request_thread = threading.Thread(target=getattr(self, request), daemon=True)
+      request_thread.start()
       think_time = think_time_generator(mean_think_time)
       while think_time > 0:
         time.sleep(0.01)
         think_time -= 0.01 * (intensity if isinstance(intensity, int) else
             intensity[int((time.time() - start_time) / conf["burstiness"]["window"])])
+      if conf["loop"] == "closed":
+        request_thread.join()
 
   def _select_next_request(self, request):
     r = random.uniform(0, sum(self._request_graph[request].values()))

@@ -2,8 +2,8 @@
 A Python library for benchmark workload generators. It enables the generation of
 reproducible bursty workloads that are representative of online services.
 
-* ATLoad uses a closed-loop: a client can only send a new request after its
-previous request has returned.
+* ATLoad can use a closed loop, where a client can only send a new request after
+the last one has returned, or an open loop.
 * ATLoad generates think times (i.e., time intervals between consecutive
 client requests) using a configurable statistical distribution (e.g., Poisson,
 uniform, or constant).
@@ -20,13 +20,14 @@ sending 3 types of requests (`write`, `read`, and `delete`) for 300 seconds. The
 mean think time is 10 seconds.
 ```
 sessions: 200                     # number of concurrent sessions
+loop: closed                      # type of loop ("closed" or "open")
 duration:
   total: 300                      # total duration in seconds
   ramp_up: 60                     # ramp up time in seconds
   ramp_down: 60                   # ramp down time in seconds
 think_time: 10                    # mean think time in seconds
-think_time_distribution: poisson  # distribution of think time (e.g., poisson,
-                                  # constant)
+think_time_distribution: poisson  # distribution of think time ("poisson",
+                                  # "uniform", or "constant")
 burstiness:
   window: 1.0                     # burstiness window in seconds
   intensity: 4                    # burstiness intensity (as a multiplier of average workload)
