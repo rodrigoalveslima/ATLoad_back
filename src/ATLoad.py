@@ -81,14 +81,14 @@ class Workload:
         else:
           self._intensity.append(1)
 
-  def _run_worker(self, log_filename, start_time, n_sessions):
+  def _run_worker(self, log_filename, start_time, n_sessions, start_at_delta):
     # Initialize sessions.
     sessions = [self._session_cls(*self._args) for i in range(n_sessions)]
     # Run each session in its own thread.
     threads = [threading.Thread(target=session._run, args=[
         self._conf,
         start_time,
-        start_time + self._duration["ramp_up"] * (i / n_sessions),
+        start_time + self._duration["ramp_up"] * (i / n_sessions) + start_at_delta,
         start_time + self._duration["total"] -
             self._duration["ramp_down"] * (i / n_sessions),
         self._request_graph,
@@ -125,7 +125,8 @@ class Workload:
     filename, extension = os.path.basename(self._log_filename).split('.')
     workers = [multiprocessing.Process(target=self._run_worker, args=(
             os.path.join(dirname, filename + str(i) + '.' + extension),
-            start_time, int(self._n_sessions // self._n_workers)))
+            start_time, int(self._n_sessions // self._n_workers),
+            i * self._conf["duration"]["ramp_up"] / self._n_sessions))
         for i in range(self._n_workers)]
     # Run each worker in its own process.
     for worker in workers:
