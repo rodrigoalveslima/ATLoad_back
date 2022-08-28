@@ -29,8 +29,22 @@ class Session:
       think_time = think_time_generator(mean_think_time)
       while think_time > 0:
         time.sleep(0.01)
-        think_time -= 0.01 * (intensity if isinstance(intensity, int) else
-            intensity[int((time.time() - start_time) / conf["burstiness"]["window"])])
+        think_time -= 0.01
+        if isinstance(intensity, list):
+          elapsed = time.time() - start_time
+          window_no = int(elapsed / conf["burstiness"]["window"])
+          if intensity[window_no] != 1:
+            window_start = window_no * conf["burstiness"]["window"]
+            window_end = window_start + conf["burstiness"]["window"]
+            window_half = (window_start + window_end) / 2
+            if (window_no == 0 or intensity[window_no - 1] == 1) and elapsed < window_half:
+              think_time -= 0.01 * (intensity[window_no] - 1) * \
+                  ((elapsed - window_start) / (conf["burstiness"]["window"] / 2))
+            elif intensity[window_no + 1] == 1 and elapsed > window_half:
+              think_time -= 0.01 * (intensity[window_no] - 1) * \
+                  ((window_end - elapsed) / (conf["burstiness"]["window"] / 2))
+            else:
+              think_time -= 0.01 * (intensity[window_no] - 1)
       if conf["loop"] == "closed":
         request_thread.join()
 
