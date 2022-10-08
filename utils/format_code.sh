@@ -23,5 +23,5 @@ done
 # Format Python files.
 for filepath in $(find -type f | grep ".*\.py$")
 do
-  yapf -i --style='{based_on_style: google, indent_width: 2}' $filepath
+  yapf -i --style='{based_on_style: google, indent_width: 2, column_limit: 160}' $filepath
 done
