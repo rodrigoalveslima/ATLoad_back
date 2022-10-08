@@ -13,8 +13,9 @@ import yaml
 
 
 class Session:
-  def _run(self, conf, start_time, start_at, stop_at, request_graph, mean_think_time,
-      think_time_generator, intensity):
+
+  def _run(self, conf, start_time, start_at, stop_at, request_graph,
+           mean_think_time, think_time_generator, intensity):
     self._logs = []
     self._request_graph = request_graph
     # Wait to start.
@@ -24,7 +25,8 @@ class Session:
     request = "main"
     while time.time() < stop_at:
       request = self._select_next_request(request)
-      request_thread = threading.Thread(target=getattr(self, request), daemon=True)
+      request_thread = threading.Thread(target=getattr(self, request),
+                                        daemon=True)
       request_thread.start()
       think_time = think_time_generator(mean_think_time)
       while think_time > 0:
@@ -37,7 +39,8 @@ class Session:
             window_start = window_no * conf["burstiness"]["window"]
             window_end = window_start + conf["burstiness"]["window"]
             window_half = (window_start + window_end) / 2
-            if (window_no == 0 or intensity[window_no - 1] == 1) and elapsed < window_half:
+            if (window_no == 0 or
+                intensity[window_no - 1] == 1) and elapsed < window_half:
               think_time -= 0.01 * (intensity[window_no] - 1) * \
                   ((elapsed - window_start) / (conf["burstiness"]["window"] / 2))
             elif intensity[window_no + 1] == 1 and elapsed > window_half:
@@ -60,8 +63,9 @@ class Session:
 
 
 class Workload:
+
   def __init__(self, conf_filename, log_filename, session_cls, random_seed,
-      n_workers, *args):
+               n_workers, *args):
     # Initialize the random number generator.
     random.seed(random_seed)
     # Parse configuration file and copy parameters.
@@ -73,8 +77,10 @@ class Workload:
     self._args = args
     self._n_sessions = self._conf["sessions"]
     self._duration = self._conf["duration"]
-    self._request_graph = dict([(request, collections.OrderedDict(
-        self._conf["request_graph"][request])) for request in self._conf["request_graph"]])
+    self._request_graph = dict([
+        (request, collections.OrderedDict(self._conf["request_graph"][request]))
+        for request in self._conf["request_graph"]
+    ])
     self._mean_think_time = self._conf["think_time"]
     self._think_time_generator = getattr(numpy.random, self._conf["think_time_distribution"]) \
         if self._conf["think_time_distribution"] != "constant" else lambda x: x
@@ -82,16 +88,20 @@ class Workload:
       self._intensity = 1
     else:
       self._intensity = []
-      for i in range(int((self._conf["duration"]["total"] + 60) / self._conf["burstiness"]["window"])):
+      for i in range(
+          int((self._conf["duration"]["total"] + 60) /
+              self._conf["burstiness"]["window"])):
         if i * self._conf["burstiness"]["window"] > self._conf["duration"]["ramp_up"] and \
             i * self._conf["burstiness"]["window"] < self._conf["duration"]["total"] - \
                 self._conf["duration"]["ramp_down"]:
           if i == 0 or self._intensity[-1] != 1:
-            self._intensity.append(self._conf["burstiness"]["intensity"]
-                if random.uniform(0, 1) > self._conf["burstiness"]["turn_off_prob"] else 1)
+            self._intensity.append(
+                self._conf["burstiness"]["intensity"] if random.uniform(
+                    0, 1) > self._conf["burstiness"]["turn_off_prob"] else 1)
           else:
-            self._intensity.append(self._conf["burstiness"]["intensity"]
-                if random.uniform(0, 1) < self._conf["burstiness"]["turn_on_prob"] else 1)
+            self._intensity.append(
+                self._conf["burstiness"]["intensity"] if random.
+                uniform(0, 1) < self._conf["burstiness"]["turn_on_prob"] else 1)
         else:
           self._intensity.append(1)
 
@@ -99,17 +109,18 @@ class Workload:
     # Initialize sessions.
     sessions = [self._session_cls(*self._args) for i in range(n_sessions)]
     # Run each session in its own thread.
-    threads = [threading.Thread(target=session._run, args=[
-        self._conf,
-        start_time,
-        start_time + self._duration["ramp_up"] * (i / n_sessions) + start_at_delta,
-        start_time + self._duration["total"] -
-            self._duration["ramp_down"] * (i / n_sessions),
-        self._request_graph,
-        self._mean_think_time,
-        self._think_time_generator,
-        self._intensity])
-        for (i, session) in enumerate(sessions)]
+    threads = [
+        threading.Thread(target=session._run,
+                         args=[
+                             self._conf, start_time,
+                             start_time + self._duration["ramp_up"] *
+                             (i / n_sessions) + start_at_delta,
+                             start_time + self._duration["total"] -
+                             self._duration["ramp_down"] * (i / n_sessions),
+                             self._request_graph, self._mean_think_time,
+                             self._think_time_generator, self._intensity
+                         ]) for (i, session) in enumerate(sessions)
+    ]
     for thread in threads:
       thread.start()
     # Wait until all sessions are finished.
@@ -120,8 +131,8 @@ class Workload:
     while True:
       session_i = None
       for (i, session) in enumerate(sessions):
-        if session._logs and (session_i is None or
-            session._logs[0][0] < sessions[session_i]._logs[0][0]):
+        if session._logs and (session_i is None or session._logs[0][0] <
+                              sessions[session_i]._logs[0][0]):
           session_i = i
       if session_i is None:
         break
@@ -137,11 +148,15 @@ class Workload:
     start_time = time.time()
     dirname = os.path.dirname(self._log_filename)
     filename, extension = os.path.basename(self._log_filename).split('.')
-    workers = [multiprocessing.Process(target=self._run_worker, args=(
-            os.path.join(dirname, filename + str(i) + '.' + extension),
-            start_time, int(self._n_sessions // self._n_workers),
-            i * self._conf["duration"]["ramp_up"] / self._n_sessions))
-        for i in range(self._n_workers)]
+    workers = [
+        multiprocessing.Process(
+            target=self._run_worker,
+            args=(os.path.join(dirname,
+                               filename + str(i) + '.' + extension), start_time,
+                  int(self._n_sessions // self._n_workers),
+                  i * self._conf["duration"]["ramp_up"] / self._n_sessions))
+        for i in range(self._n_workers)
+    ]
     # Run each worker in its own process.
     for worker in workers:
       worker.start()
